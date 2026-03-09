@@ -32,9 +32,12 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+
 3. **Get Models (Optional but highly recommended)**:
-   - **Stop Sign**: Download a stop sign haarcascade (`stop_data.xml`) and place it in the same directory. E.g., from [OpenCV Haar cascaded lists](https://github.com/opencv/opencv/tree/master/data/haarcascades).
+   - **Stop Sign**: Download a stop sign haarcascade (`stop_data.xml`) and place it in the same directory. E.g., from [OpenCV Haar cascaded lists]("https://github.com/maurehur/Stop-Sign-detection_OpenCV").
    - **Obstacle Detection**: Check out TensorFlow's or Caffe's `MobileNet SSD` pre-trained models. Edit the `ObstacleDetector` constructor in `main.py` with the paths if using.
+   "https://github.com/robmarkcole/object-detection-app/tree/master/model"
+
 
 ## Running the Code
 Run the code headless or via a terminal:
