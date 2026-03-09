@@ -41,6 +41,8 @@ class LaneDetector:
             threshold=50, maxLineGap=20, minLineLength=40
         )
         
+        hough_frame = cv2.cvtColor(cropped_edges, cv2.COLOR_GRAY2BGR)
+        
         steering_offset = 0.0 # -1.0 is full left, 1.0 is full right
         
         if lines is not None:
@@ -49,6 +51,10 @@ class LaneDetector:
             
             for line in lines:
                 x1, y1, x2, y2 = line[0]
+                
+                # Draw raw hough line
+                cv2.line(hough_frame, (x1, y1), (x2, y2), (0, 255, 255), 2)
+                
                 # Avoid divide by zero
                 if x2 == x1:
                     continue
@@ -124,4 +130,4 @@ class LaneDetector:
         cv2.putText(annotated_frame, f"Steering: {steering_offset:.2f}", (20, 40), 
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                     
-        return steering_offset, annotated_frame
+        return steering_offset, annotated_frame, hough_frame

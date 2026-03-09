@@ -1,5 +1,6 @@
 import cv2
 import time
+import numpy as np
 from motor import Car
 from lane_detector import LaneDetector
 from obstacle_detector import ObstacleDetector
@@ -44,13 +45,36 @@ def main():
             if obstacle_detector.detect(frame):
                 car.stop()
                 print("OBSTACLE DETECTED! Stopping.")
+                
+                # Show warning to prevent GUI from freezing
+                annotated_frame = frame.copy()
+                cv2.putText(annotated_frame, "OBSTACLE WARNING", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+                cv2.imshow('Lane Assist View', annotated_frame)
+                
+                hough_frame = np.zeros_like(annotated_frame)
+                cv2.putText(hough_frame, "OBSTACLE WARNING", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+                cv2.imshow('Hough Transform View', hough_frame)
+                
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+                    
                 continue # Skip the rest of the loop until clear
-
             # 2. SIGN DETECTION (High Priority)
             sign = sign_detector.detect(frame)
             if sign == "STOP":
                 print("STOP SIGN DETECTED! Stopping for 3 seconds.")
                 car.stop()
+                
+                # Show warning to prevent GUI from freezing
+                annotated_frame = frame.copy()
+                cv2.putText(annotated_frame, "STOP SIGN", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+                cv2.imshow('Lane Assist View', annotated_frame)
+                
+                hough_frame = np.zeros_like(annotated_frame)
+                cv2.putText(hough_frame, "STOP SIGN", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+                cv2.imshow('Hough Transform View', hough_frame)
+                cv2.waitKey(1) # Process the GUI event once before sleeping
+                
                 time.sleep(3)
                 # Keep moving slightly forward to pass the sign
                 car.move(0.5, 0.5)
@@ -58,7 +82,7 @@ def main():
                 continue
 
             # 3. LANE DETECTION & CONTROL
-            steering_offset, annotated_frame = lane_detector.process(frame)
+            steering_offset, annotated_frame, hough_frame = lane_detector.process(frame)
             
             # Simple Proportional Control (P-Controller)
             base_speed = 0.5 # Normal forward speed (50%)
@@ -72,6 +96,7 @@ def main():
 
             # Display output
             cv2.imshow('Lane Assist View', annotated_frame)
+            cv2.imshow('Hough Transform View', hough_frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
