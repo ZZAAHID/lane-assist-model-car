@@ -33,14 +33,14 @@ class ObstacleDetector:
             
             for i in range(detections.shape[2]):
                 confidence = detections[0, 0, i, 2]
-                if confidence > 0.5:
+                if confidence > 0.7:  # Adjusted confidence from 0.5 to 0.7 to reduce sensitivity
                     box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
                     (startX, startY, endX, endY) = box.astype("int")
                     
                     # If box is large or near the bottom center, it's an immediate obstacle
                     box_width = endX - startX
                     box_height = endY - startY
-                    if box_width > (w * 0.3) and endY > (h * 0.5):
+                    if box_width > (w * 0.4) and endY > (h * 0.6): # Adjusted width > 0.4 and height near bottom > 0.6
                         return True
             return False
 
@@ -61,7 +61,7 @@ class ObstacleDetector:
             
             # If a lot of dark objects are appearing as solid blobs in front
             obj_pixels = cv2.countNonZero(roi)
-            if obj_pixels > (roi.size * 0.4): # If 40% of the ROI is obstructed
+            if obj_pixels > (roi.size * 0.6): # Reduced sensitivity: from 40% obstructed to 60%
                 return True
                 
             return False

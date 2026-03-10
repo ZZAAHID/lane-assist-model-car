@@ -3,8 +3,7 @@ import time
 import numpy as np
 from motor import Car
 from lane_detector import LaneDetector
-from obstacle_detector import ObstacleDetector
-from sign_detector import SignDetector
+from yolo_detector import YoloDetector
 
 def main():
     print("Initialize Pi Car...")
@@ -26,8 +25,7 @@ def main():
     time.sleep(2)
 
     lane_detector = LaneDetector()
-    obstacle_detector = ObstacleDetector()
-    sign_detector = SignDetector() # Needs 'stop_data.xml' in directory
+    yolo_detector = YoloDetector()
 
     print("Starting Autonomous Loop. Press Ctrl+C to exit.")
     
@@ -41,17 +39,19 @@ def main():
                 print(f"Failed to grab frame from camera. Exiting. Error: {e}")
                 break
 
+            # Run YOLO unified detection
+            sign, obstacle_detected, yolo_annotated_frame = yolo_detector.detect(frame)
+
             # 1. OBSTACLE DETECTION (High Priority)
-            if obstacle_detector.detect(frame):
+            if obstacle_detected:
                 car.stop()
                 print("OBSTACLE DETECTED! Stopping.")
                 
                 # Show warning to prevent GUI from freezing
-                annotated_frame = frame.copy()
-                cv2.putText(annotated_frame, "OBSTACLE WARNING", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
-                cv2.imshow('Lane Assist View', annotated_frame)
+                cv2.putText(yolo_annotated_frame, "OBSTACLE WARNING", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+                cv2.imshow('Lane Assist View', yolo_annotated_frame)
                 
-                hough_frame = np.zeros_like(annotated_frame)
+                hough_frame = np.zeros_like(yolo_annotated_frame)
                 cv2.putText(hough_frame, "OBSTACLE WARNING", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
                 cv2.imshow('Hough Transform View', hough_frame)
                 
@@ -59,8 +59,8 @@ def main():
                     break
                     
                 continue # Skip the rest of the loop until clear
+                
             # 2. SIGN DETECTION (High Priority)
-            sign = sign_detector.detect(frame)
             if sign == "STOP":
                 print("STOP SIGN DETECTED! Stopping for 3 seconds.")
                 car.stop()
