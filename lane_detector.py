@@ -59,6 +59,19 @@ class LaneDetector:
         
         steering_offset = 0.0 # -1.0 is full left, 1.0 is full right
         
+        left_avg = None
+        right_avg = None
+        mid_x = w // 2
+        y_eval_bottom = h # evaluate the difference at the very bottom
+        y_eval_top = int(h * 0.5)
+        target_x = mid_x
+
+        def get_points(avg_line):
+            slope, intercept = avg_line
+            x1 = int((y_eval_bottom - intercept) / slope)
+            x2 = int((y_eval_top - intercept) / slope)
+            return ((x1, y_eval_bottom), (x2, y_eval_top))
+
         if lines is not None:
             left_lines = []
             right_lines = []
@@ -84,16 +97,6 @@ class LaneDetector:
             # Average the lines
             left_avg = np.average(left_lines, axis=0) if left_lines else None
             right_avg = np.average(right_lines, axis=0) if right_lines else None
-            
-            mid_x = w // 2
-            y_eval_bottom = h # evaluate the difference at the very bottom
-            y_eval_top = int(h * 0.5)
-
-            def get_points(avg_line):
-                slope, intercept = avg_line
-                x1 = int((y_eval_bottom - intercept) / slope)
-                x2 = int((y_eval_top - intercept) / slope)
-                return ((x1, y_eval_bottom), (x2, y_eval_top))
 
             if left_avg is not None:
                 pt1, pt2 = get_points(left_avg)
