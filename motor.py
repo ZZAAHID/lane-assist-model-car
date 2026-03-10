@@ -1,5 +1,10 @@
 from gpiozero import Motor
+from gpiozero.pins.lgpio import LGPIOFactory
+from gpiozero import Device
 
+# Crucial for Raspberry Pi 5!
+# Forces gpiozero to use the lgpio library backend to talk to the RP1 chip.
+Device.pin_factory = LGPIOFactory()
 class Car:
     def __init__(self, left_pins=(24, 23, 25), right_pins=(22, 27, 17)):
         '''
