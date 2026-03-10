@@ -65,20 +65,47 @@ def main():
                 print("STOP SIGN DETECTED! Stopping for 3 seconds.")
                 car.stop()
                 
-                # Show warning to prevent GUI from freezing
-                annotated_frame = frame.copy()
-                cv2.putText(annotated_frame, "STOP SIGN", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
-                cv2.imshow('Lane Assist View', annotated_frame)
-                
-                hough_frame = np.zeros_like(annotated_frame)
-                cv2.putText(hough_frame, "STOP SIGN", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
-                cv2.imshow('Hough Transform View', hough_frame)
-                cv2.waitKey(1) # Process the GUI event once before sleeping
-                
-                time.sleep(3)
-                # Keep moving slightly forward to pass the sign
+                # Wait for 3 seconds while keeping the camera feed alive
+                start_time = time.time()
+                while time.time() - start_time < 3.0:
+                    try:
+                        frame_rgb = picam2.capture_array()
+                        frame = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+                    except Exception:
+                        pass
+                    
+                    annotated_frame = frame.copy()
+                    cv2.putText(annotated_frame, "STOP SIGN - WAITING", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+                    cv2.imshow('Lane Assist View', annotated_frame)
+                    
+                    hough_frame = np.zeros_like(annotated_frame)
+                    cv2.putText(hough_frame, "STOP SIGN - WAITING", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+                    cv2.imshow('Hough Transform View', hough_frame)
+                    
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
+
+                # Keep moving slightly forward to pass the sign for 1 second
+                print("Proceeding forward...")
                 car.move(0.5, 0.5)
-                time.sleep(1)
+                start_time = time.time()
+                while time.time() - start_time < 1.0:
+                    try:
+                        frame_rgb = picam2.capture_array()
+                        frame = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+                    except Exception:
+                        pass
+                        
+                    annotated_frame = frame.copy()
+                    cv2.putText(annotated_frame, "PROCEEDING", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
+                    cv2.imshow('Lane Assist View', annotated_frame)
+                    
+                    hough_frame = np.zeros_like(annotated_frame)
+                    cv2.putText(hough_frame, "PROCEEDING", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
+                    cv2.imshow('Hough Transform View', hough_frame)
+                    
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
                 continue
 
             # 3. LANE DETECTION & CONTROL
