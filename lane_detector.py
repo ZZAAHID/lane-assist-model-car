@@ -17,12 +17,12 @@ class LaneDetector:
         
         # 0. Optional Perspective Transform (Bird's Eye View)
         # Define source points (trapezoid on original frame)
-        # Reduced steepness by looking slightly closer to the car and widening the top crop
+        # Made the trapezoid much wider at the top and slightly lower to drastically reduce the vertical stretching effect
         src = np.float32([
             [int(w * 0.1), h],                 # Bottom-left
             [int(w * 0.9), h],                 # Bottom-right
-            [int(w * 0.7), int(h * 0.65)],     # Top-right
-            [int(w * 0.3), int(h * 0.65)]      # Top-left
+            [int(w * 0.75), int(h * 0.7)],     # Top-right
+            [int(w * 0.25), int(h * 0.7)]      # Top-left
         ])
         
         # Define destination points (rectangle on top-down view)
