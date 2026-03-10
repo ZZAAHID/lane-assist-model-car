@@ -24,7 +24,9 @@ def main():
     # Allow camera sensor to warm up
     time.sleep(2)
 
-    lane_detector = LaneDetector()
+    # You can toggle the bird's eye view warp on or off here.
+    # Set use_birds_eye=False to process the image from the camera's native perspective.
+    lane_detector = LaneDetector(use_birds_eye=False)
     yolo_detector = YoloDetector()
 
     gui_enabled = True

@@ -2,11 +2,11 @@ import cv2
 import numpy as np
 
 class LaneDetector:
-    def __init__(self):
+    def __init__(self, use_birds_eye=True):
         # We assume a standard 640x480 resolution input from the cam
         self.width = 640
         self.height = 480
-        pass
+        self.use_birds_eye = use_birds_eye
         
     def process(self, frame):
         '''
@@ -15,13 +15,14 @@ class LaneDetector:
         '''
         h, w = frame.shape[:2]
         
-        # 0. Perspective Transform (Bird's Eye View)
+        # 0. Optional Perspective Transform (Bird's Eye View)
         # Define source points (trapezoid on original frame)
+        # Reduced steepness by looking slightly closer to the car and widening the top crop
         src = np.float32([
             [int(w * 0.1), h],                 # Bottom-left
             [int(w * 0.9), h],                 # Bottom-right
-            [int(w * 0.65), int(h * 0.6)],     # Top-right
-            [int(w * 0.35), int(h * 0.6)]      # Top-left
+            [int(w * 0.7), int(h * 0.65)],     # Top-right
+            [int(w * 0.3), int(h * 0.65)]      # Top-left
         ])
         
         # Define destination points (rectangle on top-down view)
@@ -32,11 +33,15 @@ class LaneDetector:
             [int(w * 0.2), 0]                  # Top-left
         ])
         
-        # Get perspective transform matrix and warp the frame
-        M = cv2.getPerspectiveTransform(src, dst)
-        warped = cv2.warpPerspective(frame, M, (w, h), flags=cv2.INTER_LINEAR)
-        annotated_frame = warped.copy()
-        
+        if self.use_birds_eye:
+            # Get perspective transform matrix and warp the frame
+            M = cv2.getPerspectiveTransform(src, dst)
+            warped = cv2.warpPerspective(frame, M, (w, h), flags=cv2.INTER_LINEAR)
+            annotated_frame = warped.copy()
+        else:
+            warped = frame.copy()
+            annotated_frame = frame.copy()
+            
         # 1. Grayscale
         gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
         
@@ -201,16 +206,20 @@ class LaneDetector:
             pts_center = np.array([np.transpose(np.vstack([center_fitx, ploty]))], np.int32)
             cv2.polylines(blank_annotated, pts_center, False, (0, 0, 255), 5)
         
-        # Unwarp back to normal feed view by calculating inverse transform matrix
-        Minv = cv2.getPerspectiveTransform(dst, src)
-        unwarped_annotations = cv2.warpPerspective(blank_annotated, Minv, (w, h), flags=cv2.INTER_LINEAR)
+        # Unwarp back to normal feed view if we used birds eye
+        if self.use_birds_eye:
+            Minv = cv2.getPerspectiveTransform(dst, src)
+            unwarped_annotations = cv2.warpPerspective(blank_annotated, Minv, (w, h), flags=cv2.INTER_LINEAR)
+        else:
+            unwarped_annotations = blank_annotated
         
         # Combine the original frame with the unwarped lane overlays
         final_frame = cv2.addWeighted(frame, 1, unwarped_annotations, 0.5, 0)
         
-        # Draw the source trapezoid as a visual guide (yellow)
-        cv2.polylines(final_frame, [src.astype(np.int32)], True, (0, 255, 255), 2)
-        
+        if self.use_birds_eye:
+            # Draw the source trapezoid as a visual guide (yellow)
+            cv2.polylines(final_frame, [src.astype(np.int32)], True, (0, 255, 255), 2)
+            
         # Add visual text
         if steering_offset is not None:
             cv2.putText(final_frame, f"Steering: {steering_offset:.2f}", (20, 40), 
