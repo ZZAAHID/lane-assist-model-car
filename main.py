@@ -25,7 +25,7 @@ def main():
 
     # You can toggle the bird's eye view warp on or off here.
     # Set use_birds_eye=False to process the image from the camera's native perspective.
-    lane_detector = LaneDetector(use_birds_eye=False)
+    lane_detector = LaneDetector(use_birds_eye=True)
     yolo_detector = YoloDetector()
 
     gui_enabled = True
