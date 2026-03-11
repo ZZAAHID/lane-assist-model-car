@@ -21,8 +21,8 @@ class LaneDetector:
         src = np.float32([
             [int(w * 0.1), h],                 # Bottom-left
             [int(w * 0.9), h],                 # Bottom-right
-            [int(w * 0.75), int(h * 0.7)],     # Top-right
-            [int(w * 0.25), int(h * 0.7)]      # Top-left
+            [int(w * 0.6), int(h * 0.5)],      # Top-right
+            [int(w * 0.4), int(h * 0.5)]       # Top-left
         ])
         
         # Define destination points (rectangle on top-down view)

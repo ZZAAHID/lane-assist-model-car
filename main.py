@@ -41,7 +41,7 @@ def main():
                 fr = cv2.flip(fr, -1) # Flip vertically and horizontally
                 
                 # We need to run YOLO during the delay so we can still display YOLO annotations
-                _, _, annot = yolo_detector.detect(fr)
+                _, _, _, annot = yolo_detector.detect(fr)
             except Exception:
                 continue
             
@@ -65,6 +65,7 @@ def main():
         frame_counter = 0
         last_sign = None
         last_obstacle = False
+        last_pedestrian = False
         last_yolo_frame = None
 
         while True:
@@ -80,17 +81,26 @@ def main():
             # Run YOLO unified detection only every 5 frames to save massive CPU cycles
             frame_counter += 1
             if frame_counter % 5 == 1 or last_yolo_frame is None:
-                sign, obstacle_detected, yolo_annotated_frame = yolo_detector.detect(frame)
+                sign, obstacle_detected, pedestrian_detected, yolo_annotated_frame = yolo_detector.detect(frame)
                 last_sign = sign
                 last_obstacle = obstacle_detected
+                last_pedestrian = pedestrian_detected
                 last_yolo_frame = yolo_annotated_frame
             else:
                 sign = last_sign
                 obstacle_detected = last_obstacle
+                pedestrian_detected = last_pedestrian
                 yolo_annotated_frame = last_yolo_frame
                 # Draw old boxes on the NEW frame to keep the feed looking smooth
                 # (You could do a complex tracking algorithm here, but pasting old boxes is fine for 5 frames)
                 pass
+
+            # 0. PEDESTRIAN DETECTION (Highest Priority)
+            if pedestrian_detected:
+                print("PEDESTRIAN DETECTED! Stopping.")
+                car.stop()
+                if not active_delay(0.5, "PEDESTRIAN - STOPPED"): break
+                continue
 
             # 1. OBSTACLE DETECTION (High Priority)
             if obstacle_detected:

@@ -24,7 +24,7 @@ class YoloDetector:
         1. Stop Signs (COCO Class 11)
         2. Immediate Obstacles (Person=0, Car=2, Motorcycle=3, Bus=5, Dog=16, etc.)
         
-        Returns a tuple: (sign_detected, obstacle_detected, annotated_frame)
+        Returns a tuple: (sign_detected, obstacle_detected, pedestrian_detected, annotated_frame)
         '''
         if not self.active:
             return None, False, frame
@@ -40,6 +40,7 @@ class YoloDetector:
         
         sign_detected = None
         obstacle_detected = False
+        pedestrian_detected = False
         
         # We will annotate the frame with bounding boxes
         annotated_frame = result.plot()
@@ -63,9 +64,12 @@ class YoloDetector:
             # We want to detect persons, cars, and "random objects".
             # Exclude Stop Sign(11), TV(62), Cell Phone(67)
             ignored_classes = {11, 62, 67}
-            if cls_id not in ignored_classes and conf > 0.3:
+            if cls_id not in ignored_classes and conf > 0.5:
                 # If the obstacle is large enough and near the lower portion of the frame
-                if box_width > (w * 0.25) and y2 > (h * 0.5):
-                    obstacle_detected = True
+                if box_width > (w * 0.3) and box_height > (h * 0.2) and y2 > (h * 0.5):
+                    if cls_id == 0: # Class 0 is Person in COCO
+                        pedestrian_detected = True
+                    else:
+                        obstacle_detected = True
 
-        return sign_detected, obstacle_detected, annotated_frame
+        return sign_detected, obstacle_detected, pedestrian_detected, annotated_frame
