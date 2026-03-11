@@ -15,39 +15,35 @@ class LaneDetector:
         '''
         h, w = frame.shape[:2]
         
-        # 0. Optional Perspective Transform (Bird's Eye View)
+        # 0. Set up Bird's Eye View transformation parameters
         # Define source points (trapezoid on original frame)
-        # Made the trapezoid much wider at the top and slightly lower to drastically reduce the vertical stretching effect
+        # We start near the bottom and go up to the horizon line.
+        top_y = int(h * 0.55)
         src = np.float32([
-            [int(w * 0.1), h],                 # Bottom-left
-            [int(w * 0.9), h],                 # Bottom-right
-            [int(w * 0.6), int(h * 0.5)],      # Top-right
-            [int(w * 0.4), int(h * 0.5)]       # Top-left
+            [int(w * 0.05), h],                # Bottom-left (inset to reduce edge distortion)
+            [int(w * 0.95), h],                # Bottom-right
+            [int(w * 0.65), top_y],            # Top-right
+            [int(w * 0.35), top_y]             # Top-left
         ])
         
         # Define destination points (rectangle on top-down view)
+        # Map them to a perfect rectangle in the middle of our warped frame
+        dst_margin = 0.25 # 25% margin on both left and right (lane width = 50% of screen)
         dst = np.float32([
-            [int(w * 0.2), h],                 # Bottom-left
-            [int(w * 0.8), h],                 # Bottom-right
-            [int(w * 0.8), 0],                 # Top-right
-            [int(w * 0.2), 0]                  # Top-left
+            [int(w * dst_margin), h],                 # Bottom-left
+            [int(w * (1 - dst_margin)), h],           # Bottom-right
+            [int(w * (1 - dst_margin)), 0],           # Top-right
+            [int(w * dst_margin), 0]                  # Top-left
         ])
         
-        if self.use_birds_eye:
-            # Get perspective transform matrix and warp the frame
-            M = cv2.getPerspectiveTransform(src, dst)
-            warped = cv2.warpPerspective(frame, M, (w, h), flags=cv2.INTER_LINEAR)
-            annotated_frame = warped.copy()
-        else:
-            warped = frame.copy()
-            annotated_frame = frame.copy()
-            
-        # 1. Grayscale
-        gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
+        # 1. Grayscale (Process original frame BEFORE warping)
+        # This is CRITICAL because warping stretches features near the horizon massively.
+        # Filtering before warping ensures standard thin lines are picked up cleanly everywhere.
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
-        # 2. Morphological Line Extraction (handles both white-on-black and black-on-white)
-        # We use a 15x15 kernel, which is wide/tall enough to cover standard model car lane lines
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+        # 2. Morphological Line Extraction
+        # We use a 11x11 kernel, which is wide enough to cover standard model car lane lines
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (11, 11))
         
         # Top-hat transforms isolate bright features on dark backgrounds
         tophat = cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, kernel)
@@ -61,13 +57,18 @@ class LaneDetector:
         # Blur slightly to smooth the lines before thresholding
         blur = cv2.GaussianBlur(combined_lines, (5, 5), 0)
         
-        # Threshold to get a clean binary image of strictly high-contrast thin features (like track lines)
-        _, edges = cv2.threshold(blur, 60, 255, cv2.THRESH_BINARY)
+        # Threshold to get a clean binary image of strictly high-contrast thin features
+        _, edges = cv2.threshold(blur, 50, 255, cv2.THRESH_BINARY)
         
-        # 3. Create Region of Interest (Simplified because we already warped and isolated the perspective)
-        mask = np.zeros_like(edges)
-        cv2.fillPoly(mask, np.array([[[0, h], [w, h], [w, 0], [0, 0]]]), 255)
-        cropped_edges = cv2.bitwise_and(edges, mask)
+        # 3. Apply Perspective Transform (Bird's Eye View)
+        if self.use_birds_eye:
+            M = cv2.getPerspectiveTransform(src, dst)
+            # Use INTER_NEAREST for the binary edges to keep them crisp and prevent blurring
+            cropped_edges = cv2.warpPerspective(edges, M, (w, h), flags=cv2.INTER_NEAREST)
+            annotated_frame = cv2.warpPerspective(frame, M, (w, h), flags=cv2.INTER_LINEAR)
+        else:
+            cropped_edges = edges.copy()
+            annotated_frame = frame.copy()
         
         # 4. Discover Lane Pixels using Sliding Windows
         # Take a histogram of the bottom half of the image
