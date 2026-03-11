@@ -1,6 +1,3 @@
-import cv2
-import numpy as np
-
 class YoloDetector:
     def __init__(self, model_path='yolov8n.pt'):
         '''

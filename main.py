@@ -1,6 +1,5 @@
 import cv2
 import time
-import numpy as np
 from motor import Car
 from lane_detector import LaneDetector
 from yolo_detector import YoloDetector
@@ -39,6 +38,7 @@ def main():
             try:
                 fr_rgb = picam2.capture_array()
                 fr = cv2.cvtColor(fr_rgb, cv2.COLOR_RGB2BGR)
+                fr = cv2.flip(fr, -1) # Flip vertically and horizontally
                 
                 # We need to run YOLO during the delay so we can still display YOLO annotations
                 _, _, annot = yolo_detector.detect(fr)
@@ -72,6 +72,7 @@ def main():
                 # Capture frame as RGB array, then convert to BGR for OpenCV
                 frame_rgb = picam2.capture_array()
                 frame = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+                frame = cv2.flip(frame, -1) # Flip vertically and horizontally
             except Exception as e:
                 print(f"Failed to grab frame from camera. Exiting. Error: {e}")
                 break

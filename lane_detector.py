@@ -62,7 +62,7 @@ class LaneDetector:
         blur = cv2.GaussianBlur(combined_lines, (5, 5), 0)
         
         # Threshold to get a clean binary image of strictly high-contrast thin features (like track lines)
-        _, edges = cv2.threshold(blur, 35, 255, cv2.THRESH_BINARY)
+        _, edges = cv2.threshold(blur, 60, 255, cv2.THRESH_BINARY)
         
         # 3. Create Region of Interest (Simplified because we already warped and isolated the perspective)
         mask = np.zeros_like(edges)
