@@ -146,12 +146,14 @@ def main():
                 cv2.putText(final_composite_frame, "NO LANE DETECTED - STOPPED", (20, 120), 
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
             else:
-                base_speed = 0.5 # Normal forward speed (50%)
-                max_turn_reduction = 0.3 # Max speed reduction for turning
+                # Lower base speed for better cornering control
+                base_speed = 0.4 
+                # Drastically increase steering authority so the inner wheel can stop or reverse
+                steering_factor = 0.55 
                 
                 # steering_offset is between -1.0 (left) and 1.0 (right)
-                left_speed = base_speed + (steering_offset * max_turn_reduction)
-                right_speed = base_speed - (steering_offset * max_turn_reduction)
+                left_speed = base_speed + (steering_offset * steering_factor)
+                right_speed = base_speed - (steering_offset * steering_factor)
                 
                 car.move(left_speed, right_speed)
 
