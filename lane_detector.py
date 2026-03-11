@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import warnings
 
 class LaneDetector:
     def __init__(self, use_birds_eye=True):
@@ -42,8 +43,8 @@ class LaneDetector:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
         # 2. Morphological Line Extraction
-        # We use a 11x11 kernel, which is wide enough to cover standard model car lane lines
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (11, 11))
+        # We use a 51x51 kernel, which is wide enough to cover thick tracks
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (51, 51))
         
         # Top-hat transforms isolate bright features on dark backgrounds
         tophat = cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, kernel)
@@ -55,10 +56,10 @@ class LaneDetector:
         combined_lines = cv2.add(tophat, blackhat)
         
         # Blur slightly to smooth the lines before thresholding
-        blur = cv2.GaussianBlur(combined_lines, (5, 5), 0)
+        blur = cv2.GaussianBlur(combined_lines, (9, 9), 0)
         
-        # Threshold to get a clean binary image of strictly high-contrast thin features
-        _, edges = cv2.threshold(blur, 50, 255, cv2.THRESH_BINARY)
+        # Lowered threshold to 20 for more tolerance
+        _, edges = cv2.threshold(blur, 20, 255, cv2.THRESH_BINARY)
         
         # 3. Apply Perspective Transform (Bird's Eye View)
         if self.use_birds_eye:
@@ -92,10 +93,10 @@ class LaneDetector:
         leftx_current = int(leftx_base)
         rightx_current = int(rightx_base)
         
-        # Set the width of the windows +/- margin
-        margin = 50
-        # Set minimum number of pixels found to recenter window
-        minpix = 50
+        # Set the width of the windows +/- margin (increased for better tolerance particularly in normal view)
+        margin = 130
+        # Set minimum number of pixels found to recenter window (lowered)
+        minpix = 30
         
         # Create empty lists to receive left and right lane pixel indices
         left_lane_inds = []
@@ -141,10 +142,13 @@ class LaneDetector:
         right_fit = None
         
         # 5. Fit Polynomials
-        if len(leftx) > 0:
-            left_fit = np.polyfit(lefty, leftx, 2)
-        if len(rightx) > 0:
-            right_fit = np.polyfit(righty, rightx, 2)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', np.RankWarning)
+            # Require minimum points and some vertical spread to avoid poorly conditioned polyfits
+            if len(leftx) > 10 and (np.max(lefty) - np.min(lefty)) > 10:
+                left_fit = np.polyfit(lefty, leftx, 2)
+            if len(rightx) > 10 and (np.max(righty) - np.min(righty)) > 10:
+                right_fit = np.polyfit(righty, rightx, 2)
             
         ploty = np.linspace(0, h-1, h)
         
