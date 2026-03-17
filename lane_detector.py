@@ -17,54 +17,48 @@ class LaneDetector:
         h, w = frame.shape[:2]
         
         # 0. Set up Bird's Eye View transformation parameters
-        # Define source points (trapezoid on original frame)
-        # We start near the bottom and go up to the horizon line.
         top_y = int(h * 0.55)
         src = np.float32([
-            [int(w * 0.05), h],                # Bottom-left (inset to reduce edge distortion)
-            [int(w * 0.95), h],                # Bottom-right
-            [int(w * 0.65), top_y],            # Top-right
-            [int(w * 0.35), top_y]             # Top-left
+            [int(w * 0.05), h],
+            [int(w * 0.95), h],
+            [int(w * 0.65), top_y],
+            [int(w * 0.35), top_y]
         ])
         
-        # Define destination points (rectangle on top-down view)
-        # Map them to a perfect rectangle in the middle of our warped frame
-        dst_margin = 0.25 # 25% margin on both left and right (lane width = 50% of screen)
+        dst_margin = 0.25
         dst = np.float32([
-            [int(w * dst_margin), h],                 # Bottom-left
-            [int(w * (1 - dst_margin)), h],           # Bottom-right
-            [int(w * (1 - dst_margin)), 0],           # Top-right
-            [int(w * dst_margin), 0]                  # Top-left
+            [int(w * dst_margin), h],
+            [int(w * (1 - dst_margin)), h],
+            [int(w * (1 - dst_margin)), 0],
+            [int(w * dst_margin), 0]
         ])
         
-        # 1. Grayscale (Process original frame BEFORE warping)
-        # This is CRITICAL because warping stretches features near the horizon massively.
-        # Filtering before warping ensures standard thin lines are picked up cleanly everywhere.
+        # 1. Grayscale
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
         # 2. Morphological Line Extraction
-        # We use a 51x51 kernel, which is wide enough to cover thick tracks
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (51, 51))
+        # --- CHANGE: Use larger kernel (71x71) for thicker black lines ---
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (71, 71))
         
-        # Top-hat transforms isolate bright features on dark backgrounds
-        tophat = cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, kernel)
-        
-        # Black-hat transforms isolate dark features on bright backgrounds
+        # For BLACK lines on WHITE surface:
+        # blackhat isolates DARK features on BRIGHT backgrounds — this is our main signal
         blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, kernel)
         
-        # Combine both (so any line, whether black or white, is represented as bright pixels)
-        combined_lines = cv2.add(tophat, blackhat)
+        # tophat isolates bright features — keep it but weight blackhat more
+        tophat = cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, kernel)
         
-        # Blur slightly to smooth the lines before thresholding
+        # --- CHANGE: Weight blackhat 2x more since lines are black on white ---
+        combined_lines = cv2.addWeighted(blackhat, 2.0, tophat, 0.5, 0)
+        
+        # Blur to smooth
         blur = cv2.GaussianBlur(combined_lines, (9, 9), 0)
         
-        # Lowered threshold to 20 for more tolerance
-        _, edges = cv2.threshold(blur, 20, 255, cv2.THRESH_BINARY)
+        # --- CHANGE: Raised threshold to 30 to reduce noise on bright white surface ---
+        _, edges = cv2.threshold(blur, 30, 255, cv2.THRESH_BINARY)
         
         # 3. Apply Perspective Transform (Bird's Eye View)
         if self.use_birds_eye:
             M = cv2.getPerspectiveTransform(src, dst)
-            # Use INTER_NEAREST for the binary edges to keep them crisp and prevent blurring
             cropped_edges = cv2.warpPerspective(edges, M, (w, h), flags=cv2.INTER_NEAREST)
             annotated_frame = cv2.warpPerspective(frame, M, (w, h), flags=cv2.INTER_LINEAR)
         else:
@@ -72,38 +66,31 @@ class LaneDetector:
             annotated_frame = frame.copy()
         
         # 4. Discover Lane Pixels using Sliding Windows
-        # Take a histogram of the bottom half of the image
         histogram = np.sum(cropped_edges[h//2:, :], axis=0)
         
-        # Find the peak of the left and right halves of the histogram
         midpoint = int(histogram.shape[0] // 2)
         leftx_base = np.argmax(histogram[:midpoint])
         rightx_base = np.argmax(histogram[midpoint:]) + midpoint
         
-        # Choose the number of sliding windows
         nwindows = 9
         window_height = int(h // nwindows)
         
-        # Identify the x and y positions of all nonzero pixels in the image
         nonzero = cropped_edges.nonzero()
         nonzeroy = np.array(nonzero[0])
         nonzerox = np.array(nonzero[1])
         
-        # Current positions to be updated for each window
         leftx_current = int(leftx_base)
         rightx_current = int(rightx_base)
         
-        # Set the width of the windows +/- margin (increased for better tolerance particularly in normal view)
-        margin = 130
-        # Set minimum number of pixels found to recenter window (lowered)
-        minpix = 30
+        # --- CHANGE: Increased margin to 150 for wider black line tracks ---
+        margin = 150
+        # --- CHANGE: Lowered minpix to 20 so windows recenter more easily ---
+        minpix = 20
         
-        # Create empty lists to receive left and right lane pixel indices
         left_lane_inds = []
         right_lane_inds = []
         
         for window in range(nwindows):
-            # Identify window boundaries in x and y (and right and left)
             win_y_low = int(h - (window+1)*window_height)
             win_y_high = int(h - window*window_height)
             
@@ -112,27 +99,22 @@ class LaneDetector:
             win_xright_low = int(rightx_current - margin)
             win_xright_high = int(rightx_current + margin)
             
-            # Identify the nonzero pixels in x and y within the window
             good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & 
                             (nonzerox >= win_xleft_low) &  (nonzerox < win_xleft_high)).nonzero()[0]
             good_right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & 
                             (nonzerox >= win_xright_low) &  (nonzerox < win_xright_high)).nonzero()[0]
             
-            # Append these indices to the lists
             left_lane_inds.append(good_left_inds)
             right_lane_inds.append(good_right_inds)
             
-            # If you found > minpix pixels, recenter next window on their mean position
             if len(good_left_inds) > minpix:
                 leftx_current = int(np.mean(nonzerox[good_left_inds]))
             if len(good_right_inds) > minpix:        
                 rightx_current = int(np.mean(nonzerox[good_right_inds]))
                 
-        # Concatenate the arrays of indices
         left_lane_inds = np.concatenate(left_lane_inds)
         right_lane_inds = np.concatenate(right_lane_inds)
         
-        # Extract left and right line pixel positions
         leftx = nonzerox[left_lane_inds]
         lefty = nonzeroy[left_lane_inds] 
         rightx = nonzerox[right_lane_inds]
@@ -144,7 +126,6 @@ class LaneDetector:
         # 5. Fit Polynomials
         with warnings.catch_warnings():
             warnings.simplefilter('ignore', np.RankWarning)
-            # Require minimum points and some vertical spread to avoid poorly conditioned polyfits
             if len(leftx) > 10 and (np.max(lefty) - np.min(lefty)) > 10:
                 left_fit = np.polyfit(lefty, leftx, 2)
             if len(rightx) > 10 and (np.max(righty) - np.min(righty)) > 10:
@@ -163,7 +144,6 @@ class LaneDetector:
             
         # 6. Calculate Steering & Center
         mid_x = w // 2
-        y_eval = h # calculate steering from the bottom of the screen
         
         target_x = mid_x
         
@@ -171,7 +151,6 @@ class LaneDetector:
             center_fitx = (left_fitx + right_fitx) / 2
             target_x = center_fitx[-1]
         elif left_fitx is not None:
-            # Hug left lane
             target_x = left_fitx[-1] + (w // 3)
             center_fitx = left_fitx + (w // 3)
         elif right_fitx is not None:
@@ -179,7 +158,6 @@ class LaneDetector:
             center_fitx = right_fitx - (w // 3)
             
         if center_fitx is None:
-            # Tell controller to STOP if no path exists
             steering_offset = None
         else:
             pixel_offset = target_x - mid_x
@@ -189,17 +167,13 @@ class LaneDetector:
         # 7. Draw the Path
         blank_annotated = np.zeros_like(annotated_frame)
         
-        # Draw the lane region (Green Polygon)
         if center_fitx is not None:
-            # Create points for left and right
-            # If only one line is found, we approximate the other side
             if left_fitx is not None and right_fitx is not None:
                 pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
                 pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
                 pts = np.hstack((pts_left, pts_right))
-                cv2.fillPoly(blank_annotated, np.int_([pts]), (0, 100, 0)) # Faint green fill
+                cv2.fillPoly(blank_annotated, np.int_([pts]), (0, 100, 0))
             
-            # Draw the solid lines
             if left_fitx is not None:
                 pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))], np.int32)
                 cv2.polylines(blank_annotated, pts_left, False, (0, 255, 0), 10)
@@ -207,25 +181,20 @@ class LaneDetector:
                 pts_right = np.array([np.transpose(np.vstack([right_fitx, ploty]))], np.int32)
                 cv2.polylines(blank_annotated, pts_right, False, (0, 255, 0), 10)
                 
-            # Draw center path line (Red)
             pts_center = np.array([np.transpose(np.vstack([center_fitx, ploty]))], np.int32)
             cv2.polylines(blank_annotated, pts_center, False, (0, 0, 255), 5)
         
-        # Unwarp back to normal feed view if we used birds eye
         if self.use_birds_eye:
             Minv = cv2.getPerspectiveTransform(dst, src)
             unwarped_annotations = cv2.warpPerspective(blank_annotated, Minv, (w, h), flags=cv2.INTER_LINEAR)
         else:
             unwarped_annotations = blank_annotated
         
-        # Combine the original frame with the unwarped lane overlays
         final_frame = cv2.addWeighted(frame, 1, unwarped_annotations, 0.5, 0)
         
         if self.use_birds_eye:
-            # Draw the source trapezoid as a visual guide (yellow)
             cv2.polylines(final_frame, [src.astype(np.int32)], True, (0, 255, 255), 2)
             
-        # Add visual text
         if steering_offset is not None:
             cv2.putText(final_frame, f"Steering: {steering_offset:.2f}", (20, 40), 
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
