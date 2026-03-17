@@ -20,38 +20,31 @@ class PIDController:
     - Start with Ki=0 and Kd=0, tune Kp first
     '''
     def __init__(self, Kp=0.30, Ki=0.001, Kd=0.08):
-        self.Kp = Kp   # Proportional gain
-        self.Ki = Ki   # Integral gain
-        self.Kd = Kd   # Derivative gain
+        self.Kp = Kp
+        self.Ki = Ki
+        self.Kd = Kd
 
         self.prev_error = 0.0
         self.integral = 0.0
-        self.integral_limit = 0.5  # Clamp integral to prevent windup
+        self.integral_limit = 0.5
 
     def compute(self, error, dt):
-        '''
-        Compute PID output given current error and time delta.
-        Returns a correction value between -1.0 and 1.0.
-        '''
         if dt <= 0:
-            dt = 0.033  # Default to ~30fps if time is weird
+            dt = 0.033
 
-        # Proportional term
         P = self.Kp * error
 
-        # Integral term (with anti-windup clamping)
         self.integral += error * dt
         self.integral = max(min(self.integral, self.integral_limit), -self.integral_limit)
         I = self.Ki * self.integral
 
-        # Derivative term (rate of change of error)
         derivative = (error - self.prev_error) / dt
         D = self.Kd * derivative
 
         self.prev_error = error
 
         output = P + I + D
-        return max(min(output, 1.0), -1.0)  # Clamp to [-1, 1]
+        return max(min(output, 1.0), -1.0)
 
     def reset(self):
         self.prev_error = 0.0
@@ -74,19 +67,17 @@ def main():
 
     time.sleep(2)
 
-    lane_detector = LaneDetector(use_birds_eye=True)
+    lane_detector = LaneDetector(use_birds_eye=False)
     yolo_detector = YoloDetector()
 
-    # ── PID Controller ──────────────────────────────────────────────────────
     pid = PIDController(
-        Kp=0.30,   # Proportional — main steering strength (tune this first)
-        Ki=0.001,  # Integral — corrects long-term drift (keep small)
-        Kd=0.08    # Derivative — dampens wobbling (increase if car oscillates)
+        Kp=0.30,
+        Ki=0.001,
+        Kd=0.08
     )
 
-    # ── Speed Settings ──────────────────────────────────────────────────────
-    BASE_SPEED = 0.30       # Overall forward speed (0.0 to 1.0)
-    MAX_STEERING = 0.30     # Max speed difference between wheels during a turn
+    BASE_SPEED = 0.30
+    MAX_STEERING = 0.30
 
     gui_enabled = True
     last_time = time.time()
@@ -100,7 +91,7 @@ def main():
             try:
                 fr_rgb = picam2.capture_array()
                 fr = cv2.cvtColor(fr_rgb, cv2.COLOR_RGB2BGR)
-                fr = cv2.flip(fr,0)
+                fr = cv2.flip(fr, 0)  # Flip vertically only (upside down)
                 _, _, _, annot = yolo_detector.detect(fr)
             except Exception:
                 continue
@@ -124,21 +115,18 @@ def main():
         last_yolo_frame = None
 
         while True:
-            # ── Capture Frame ───────────────────────────────────────────────
             try:
                 frame_rgb = picam2.capture_array()
                 frame = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
-                frame = cv2.flip(frame,0)
+                frame = cv2.flip(frame, 0)  # Flip vertically only (upside down)
             except Exception as e:
                 print(f"Failed to grab frame: {e}")
                 break
 
-            # ── Compute dt for PID ──────────────────────────────────────────
             current_time = time.time()
             dt = current_time - last_time
             last_time = current_time
 
-            # ── YOLO Detection (every 5 frames) ────────────────────────────
             frame_counter += 1
             if frame_counter % 5 == 1 or last_yolo_frame is None:
                 sign, obstacle_detected, pedestrian_detected, yolo_annotated_frame = yolo_detector.detect(frame)
@@ -152,7 +140,7 @@ def main():
                 pedestrian_detected = last_pedestrian
                 yolo_annotated_frame = last_yolo_frame
 
-            # ── 0. PEDESTRIAN (Highest Priority) ────────────────────────────
+            # 0. PEDESTRIAN (Highest Priority)
             if pedestrian_detected:
                 print("PEDESTRIAN DETECTED! Stopping.")
                 car.stop()
@@ -160,7 +148,7 @@ def main():
                 if not active_delay(0.5, "PEDESTRIAN - STOPPED"): break
                 continue
 
-            # ── 1. OBSTACLE ─────────────────────────────────────────────────
+            # 1. OBSTACLE
             if obstacle_detected:
                 print("OBSTACLE DETECTED! Initiating overtake.")
                 pid.reset()
@@ -172,7 +160,7 @@ def main():
                 if not active_delay(1.0, "OVERTAKING - RETURN LEFT"): break
                 continue
 
-            # ── 2. STOP SIGN ─────────────────────────────────────────────────
+            # 2. STOP SIGN
             if sign == "STOP":
                 print("STOP SIGN DETECTED! Stopping for 3 seconds.")
                 car.stop()
@@ -183,34 +171,28 @@ def main():
                 if not active_delay(1.0, "PROCEEDING"): break
                 continue
 
-            # ── 3. LANE DETECTION + PID STEERING ────────────────────────────
+            # 3. LANE DETECTION + PID STEERING
             steering_offset, final_composite_frame = lane_detector.process(yolo_annotated_frame)
 
             if steering_offset is None:
-                # No lane found — stop and reset PID
                 car.stop()
                 pid.reset()
                 cv2.putText(final_composite_frame, "NO LANE - STOPPED", (20, 120),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
             else:
-                # ── PID computes smooth correction ──────────────────────────
                 correction = pid.compute(steering_offset, dt)
 
-                # Apply correction to wheel speeds
                 left_speed  = BASE_SPEED + (correction * MAX_STEERING)
                 right_speed = BASE_SPEED - (correction * MAX_STEERING)
 
-                # Clamp speeds to valid range [0.0, 1.0]
                 left_speed  = max(0.0, min(1.0, left_speed))
                 right_speed = max(0.0, min(1.0, right_speed))
 
                 car.move(left_speed, right_speed)
 
-                # Show PID info on screen
                 cv2.putText(final_composite_frame, f"PID: {correction:.2f}", (20, 80),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
 
-            # ── Display ──────────────────────────────────────────────────────
             if gui_enabled:
                 try:
                     cv2.imshow('Autonomous Assist View', final_composite_frame)
