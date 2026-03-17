@@ -1,10 +1,10 @@
 from gpiozero import Motor
 from gpiozero.pins.lgpio import LGPIOFactory
 from gpiozero import Device
-
 # Crucial for Raspberry Pi 5!
 # Forces gpiozero to use the lgpio library backend to talk to the RP1 chip.
 Device.pin_factory = LGPIOFactory()
+
 class Car:
     def __init__(self, left_pins=(24, 23, 25), right_pins=(22, 27, 17)):
         '''
@@ -15,17 +15,17 @@ class Car:
         Note: on Raspberry Pi 5, we use gpiozero which utilizes the lgpio backend
         to successfully talk to the RP1 chip natively.
         '''
-        # We set pwm=True to allow speed control via the Enable pins
+        # SWAPPED: left_pins now controls right motor and vice versa to fix inverted steering
         self.left_motor = Motor(
-            forward=left_pins[0], 
-            backward=left_pins[1], 
-            enable=left_pins[2], 
+            forward=right_pins[0],
+            backward=right_pins[1],
+            enable=right_pins[2],
             pwm=True
         )
         self.right_motor = Motor(
-            forward=right_pins[0], 
-            backward=right_pins[1], 
-            enable=right_pins[2], 
+            forward=left_pins[0],
+            backward=left_pins[1],
+            enable=left_pins[2],
             pwm=True
         )
 
@@ -46,10 +46,8 @@ class Car:
             # Treat very small speeds as complete stop
             if abs(speed) < 0.05:
                 return 0.0
-            
             # Scale the (0.0, 1.0] input range to (min_pwm, 1.0]
             mapped_speed = min_pwm + (abs(speed) * (1.0 - min_pwm))
-            
             return mapped_speed if speed > 0 else -mapped_speed
 
         actual_left = apply_deadband(left_speed)
@@ -60,7 +58,7 @@ class Car:
             self.left_motor.forward(actual_left)
         else:
             self.left_motor.backward(abs(actual_left))
-            
+
         # Control right motor
         if actual_right >= 0:
             self.right_motor.forward(actual_right)
