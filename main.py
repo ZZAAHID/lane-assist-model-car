@@ -100,7 +100,7 @@ def main():
             try:
                 fr_rgb = picam2.capture_array()
                 fr = cv2.cvtColor(fr_rgb, cv2.COLOR_RGB2BGR)
-                fr = cv2.flip(fr, -1)
+                fr = cv2.flip(fr,0)
                 _, _, _, annot = yolo_detector.detect(fr)
             except Exception:
                 continue
@@ -128,7 +128,7 @@ def main():
             try:
                 frame_rgb = picam2.capture_array()
                 frame = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
-                frame = cv2.flip(frame, -1)
+                frame = cv2.flip(frame,0)
             except Exception as e:
                 print(f"Failed to grab frame: {e}")
                 break
