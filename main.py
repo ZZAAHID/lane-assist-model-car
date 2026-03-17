@@ -91,8 +91,6 @@ def main():
                 obstacle_detected = last_obstacle
                 pedestrian_detected = last_pedestrian
                 yolo_annotated_frame = last_yolo_frame
-                # Draw old boxes on the NEW frame to keep the feed looking smooth
-                # (You could do a complex tracking algorithm here, but pasting old boxes is fine for 5 frames)
                 pass
 
             # 0. PEDESTRIAN DETECTION (Highest Priority)
@@ -125,31 +123,28 @@ def main():
                 print("STOP SIGN DETECTED! Stopping for 3 seconds.")
                 car.stop()
                 
-                # Wait for 3 seconds while keeping the camera feed alive
                 if not active_delay(3.0, "STOP SIGN - WAITING"): break
 
-                # Keep moving slightly forward to pass the sign for 1 second
                 print("Proceeding forward...")
                 car.move(0.5, 0.5)
                 if not active_delay(1.0, "PROCEEDING"): break
                 continue
 
             # 3. LANE DETECTION & CONTROL
-            # Pass the yolo_annotated_frame into the lane detector so it draws lane lines
-            # on top of the already YOLO-marked frame.
             steering_offset, final_composite_frame = lane_detector.process(yolo_annotated_frame)
             
             # Simple Proportional Control (P-Controller)
             if steering_offset is None:
-                # No lane detected, stop the car
                 car.stop()
                 cv2.putText(final_composite_frame, "NO LANE DETECTED - STOPPED", (20, 120), 
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
             else:
-                # Lower base speed for better cornering control
-                base_speed = 0.4 
-                # Drastically increase steering authority so the inner wheel can stop or reverse
-                steering_factor = 0.55 
+                # --- CHANGE: Reduced base speed from 0.4 to 0.3 for overall slower movement ---
+                base_speed = 0.3
+
+                # --- CHANGE: Reduced steering_factor from 0.55 to 0.25 for much gentler turns ---
+                # This means even at max offset the speed difference is smaller = slower turns
+                steering_factor = 0.25
                 
                 # steering_offset is between -1.0 (left) and 1.0 (right)
                 left_speed = base_speed + (steering_offset * steering_factor)
@@ -172,7 +167,6 @@ def main():
     except Exception as e:
         print(f"\nCaught exception: {e}")
     finally:
-        # Guarantee motors are stopped on exit
         car.stop()
         try:
             picam2.stop()
