@@ -15,16 +15,16 @@ class Car:
         Note: on Raspberry Pi 5, we use gpiozero which utilizes the lgpio backend
         to successfully talk to the RP1 chip natively.
         '''
-        # SWAPPED: left_pins now controls right motor and vice versa to fix inverted steering
+        # forward and backward are swapped to fix reversed direction
         self.left_motor = Motor(
-            forward=right_pins[0],
-            backward=right_pins[1],
+            forward=right_pins[1],   # swapped
+            backward=right_pins[0],  # swapped
             enable=right_pins[2],
             pwm=True
         )
         self.right_motor = Motor(
-            forward=left_pins[0],
-            backward=left_pins[1],
+            forward=left_pins[1],    # swapped
+            backward=left_pins[0],   # swapped
             enable=left_pins[2],
             pwm=True
         )
@@ -35,18 +35,14 @@ class Car:
         Speeds should be between -1.0 (full backward) and 1.0 (full forward).
         Automatically compensates for the motor deadband (40% PWM minimum).
         '''
-        # Constrain values to [-1.0, 1.0]
         left_speed = max(min(left_speed, 1.0), -1.0)
         right_speed = max(min(right_speed, 1.0), -1.0)
 
-        # Minimum PWM required to overcome static friction
         min_pwm = 0.40
 
         def apply_deadband(speed):
-            # Treat very small speeds as complete stop
             if abs(speed) < 0.05:
                 return 0.0
-            # Scale the (0.0, 1.0] input range to (min_pwm, 1.0]
             mapped_speed = min_pwm + (abs(speed) * (1.0 - min_pwm))
             return mapped_speed if speed > 0 else -mapped_speed
 
